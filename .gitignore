@@ -1,0 +1,16 @@
+# XcodeGen 生成的工程（由 project.yml 生成，不入库）
+*.xcodeproj
+
+# Xcode
+build/
+DerivedData/
+*.xcworkspace
+!default.xcworkspace
+xcuserdata/
+*.xcuserstate
+
+# macOS
+.DS_Store
+
+# AI 工具临时产物
+.ai/

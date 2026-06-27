@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- 助手【不启用】沙盒，这样才能给终端传命令行参数。仅用 App Group 读取请求与配置。 -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.smiler.superRight</string>
+	</array>
+</dict>
+</plist>
