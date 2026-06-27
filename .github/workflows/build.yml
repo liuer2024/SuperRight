@@ -1,0 +1,77 @@
+name: Build macOS App
+
+# 触发条件：
+#  - 推送到 main 分支：验证能否编译，并上传一份构建产物（Artifact，保留 30 天）
+#  - 推送 v 开头的 tag（如 v1.0.0）：额外创建一个 GitHub Release 并附上 zip
+#  - 手动触发：在 Actions 页面点 "Run workflow"
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+# 创建 Release 需要写权限
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Package
+    runs-on: macos-14
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 显示 Xcode 版本
+        run: xcodebuild -version
+
+      - name: 安装 XcodeGen
+        run: brew install xcodegen
+
+      - name: 生成 Xcode 工程
+        run: xcodegen generate
+
+      # 服务器上没有你的开发者证书，这里关闭签名，仅做编译 + 打包。
+      # 产物是“未签名”的 app：可验证编译，本地重新签名后可用。
+      - name: 构建 Release（未签名）
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project superRight.xcodeproj \
+            -scheme superRight \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM="" \
+            build
+
+      - name: 打包成 zip
+        run: |
+          set -euo pipefail
+          APP="build/Build/Products/Release/superRight.app"
+          test -d "$APP" || { echo "✗ 未找到构建产物：$APP"; exit 1; }
+          ditto -c -k --keepParent "$APP" superRight.zip
+          echo "产物大小：$(du -h superRight.zip | cut -f1)"
+
+      - name: 上传构建产物（Artifact）
+        uses: actions/upload-artifact@v4
+        with:
+          name: superRight-app
+          path: superRight.zip
+          retention-days: 30
+
+      - name: 发布 Release（仅 tag 触发时）
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: superRight.zip
+          body: |
+            ## superRight ${{ github.ref_name }}
+
+            > ⚠️ 此构建为**未签名**版本。首次打开请右键 App 选「打开」，
+            > 或在终端执行 `xattr -dr com.apple.quarantine superRight.app` 去除隔离属性。
+            > Finder 扩展需要正确签名后才能在系统中加载。
