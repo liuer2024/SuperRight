@@ -66,8 +66,8 @@ class FinderSync: FIFinderSync {
     // MARK: - 动作
 
     @objc func openInDefault(_ sender: AnyObject?) {
-        let term = AppConfig.defaultTerminal
-        targetDirectories().forEach { term.open(directory: $0) }
+        targetDirectories().forEach { enqueueHelperRequest(action: "open", directory: $0) }
+        launchHelper()
     }
 
     @objc func copyAbsolutePath(_ sender: AnyObject?) {
@@ -80,25 +80,19 @@ class FinderSync: FIFinderSync {
 
     @objc func openWithHTTPServer(_ sender: AnyObject?) {
         guard let dir = targetDirectories().first else { return }
-        startHTTPServer(in: dir)
+        enqueueHelperRequest(action: "serve", directory: dir)
+        launchHelper()
     }
 
-    // MARK: - http-server
+    // MARK: - Helper requests
 
-    /// 沙盒扩展不能执行命令、也不能给终端传参。所以改为：
-    /// 1) 把「要服务的目录」写进 App Group 的 requests/（纯数据文件）；
-    /// 2) 唤起非沙盒的 superRightHelper，由它用 -e 把命令直接交给终端启动服务器。
-    private func startHTTPServer(in directory: URL) {
-        guard let container = FileManager.default
-            .containerURL(forSecurityApplicationGroupIdentifier: AppConfig.appGroupID)
-        else { return }
-
-        let reqDir = container.appendingPathComponent("requests", isDirectory: true)
+    /// 沙盒扩展不直接把目录交给终端，而是把请求写入共享/兜底目录，再唤起非沙盒 helper。
+    private func enqueueHelperRequest(action: String, directory: URL) {
+        guard let reqDir = HelperRequestStore.writableRequestsDirectory() else { return }
         try? FileManager.default.createDirectory(at: reqDir, withIntermediateDirectories: true)
         let reqURL = reqDir.appendingPathComponent("\(UUID().uuidString).txt")
-        guard (try? directory.path.write(to: reqURL, atomically: true, encoding: .utf8)) != nil else { return }
-
-        launchHelper()
+        let body = "\(action)\n\(directory.path)"
+        try? body.write(to: reqURL, atomically: true, encoding: .utf8)
     }
 
     /// 唤起内置的非沙盒小助手。优先按 Bundle ID 找，找不到则按相对主 App 的路径找。
